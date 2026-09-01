@@ -418,11 +418,22 @@ def find_email_from_phone_and_name(
     phone = phone.strip()
     name = name.strip()
 
-    # Phase 1: Phone Processing & OSINT Dorking
+    # Phase 1: Phone Processing & OSINT Dorking + Social Profile Name Harvesting
+    harvested_social_names = []
     if phone:
-        log("🔍 Phase 1", "Parsing phone number metadata...")
+        log("🔍 Phase 1", "Parsing phone number metadata & harvesting social profile names...")
         phone_info = parse_phone(phone)
         phone_variants = phone_info.get("variants", [phone])
+
+        # Harvest real profile names via social_name_harvester
+        try:
+            from social_name_harvester import harvest_social_names
+            h_res = harvest_social_names(phone)
+            if h_res.get("all_names"):
+                harvested_social_names = h_res["all_names"]
+                log("👤 Phase 1", f"Harvested Real Profile Names: {', '.join(harvested_social_names)}")
+        except Exception:
+            pass
 
         log("🌐 Phase 1", f"Performing Web OSINT dorking for phone: {phone_info.get('e164', phone)}")
         all_snippets = []
@@ -447,13 +458,42 @@ def find_email_from_phone_and_name(
 
             if not name:
                 for nm in extract_names_from_text(snip):
-                    if nm not in scraped_names:
+                    if nm not in scraped_names and nm not in harvested_social_names:
                         scraped_names.append(nm)
 
-    resolved_name = name or (scraped_names[0] if scraped_names else "")
+    # Phase 1.5: Google Account Recovery Name Verification (Playwright)
+    google_verified_names = []
+    google_recovery_status = "Not Run"
+    
+    if phone:
+        names_to_try = []
+        if name:
+            names_to_try.append(name)
+        names_to_try.extend([n for n in harvested_social_names if n not in names_to_try])
+        names_to_try.extend([n for n in scraped_names if n not in names_to_try])
+
+        for target_n in names_to_try[:2]:
+            parts = target_n.strip().split()
+            if len(parts) >= 2:
+                f_name, l_name = parts[0], parts[-1]
+                log("🚀 Google Recovery", f"Checking Google Account match for name: '{f_name} {l_name}'...")
+                try:
+                    from google_recovery_engine import run_google_account_verify_sync
+                    g_res = run_google_account_verify_sync(phone, f_name, l_name)
+                    if g_res.get("matched"):
+                        log("🔥 Google Match!", f"Google Account Confirmed for: {f_name} {l_name}")
+                        google_verified_names.append(target_n)
+                        google_recovery_status = f"🟢 Confirmed: {f_name} {l_name}"
+                        break
+                    else:
+                        google_recovery_status = "🔴 No Google Match Found"
+                except Exception as e:
+                    google_recovery_status = f"⚠️ Error: {str(e)}"
+
+    resolved_name = name or (google_verified_names[0] if google_verified_names else (scraped_names[0] if scraped_names else ""))
 
     # Phase 2: Dynamic Matrix Permutation Generation
-    log("🔮 Phase 2", f"Generating dynamic ranked permutations for: '{resolved_name or 'N/A'}'")
+    log("🔮 Phase 2", f"Generating clean real permutations for: '{resolved_name or 'N/A'}'")
     high_candidates, secondary_candidates = [], []
     if resolved_name:
         high_candidates, secondary_candidates = generate_ranked_email_candidates(
@@ -549,6 +589,8 @@ def find_email_from_phone_and_name(
         "phone_info": phone_info,
         "resolved_name": resolved_name,
         "scraped_names": scraped_names,
+        "google_recovery_status": google_recovery_status,
+        "google_verified_names": google_verified_names,
         "primary_email": primary_email,
         "smtp_verified": smtp_verified,
         "smtp_uncertain": smtp_uncertain,
