@@ -192,7 +192,7 @@ st.sidebar.info(
 st.markdown('<div class="main-title">⚡ Phone & Name → Email Finder</div>', unsafe_allow_html=True)
 st.markdown('<div class="main-subtitle">Phone number বা ব্যক্তির নাম দিয়ে রেজিস্টার্ড ইমেইল অ্যাড্রেস বের করুন — SMTP Verified & Web OSINT Powered</div>', unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4 = st.tabs(["🎯 Single Finder", "📁 Bulk Finder", "🔮 Permutation Tool", "📖 Guide"])
+tab1, tab2 = st.tabs(["🎯 Real Phone & Name Email Finder", "📖 System Guide"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -256,12 +256,17 @@ with tab1:
             direct = result.get("directly_found_emails", [])
             candidates = result.get("email_candidates", [])
             primary = result.get("primary_email", "Not Found")
+            google_status = result.get("google_recovery_status", "Not Run")
+
+            if not resolved_name and primary == "Not Found" and not direct and not smtp_v:
+                st.warning("⚠️ এই ফোন নাম্বারের জন্য ইন্টারনেটে বা সোশ্যাল মিডিয়ায় কোনো রেজিস্টার্ড নাম বা ইমেইল পাওয়া যায়নি (No Profile / Email Found)।")
 
             c1, c2, c3, c4 = st.columns(4)
             with c1:
                 st.markdown(f'''<div class="stat-card">
                     <div class="stat-label">Resolved Name</div>
                     <div class="stat-value" style="font-size:1.1rem; color:#A5B4FC;">{resolved_name or "—"}</div>
+                    <div style="font-size:0.75rem; color:#FBBF24; margin-top:4px;">{google_status}</div>
                 </div>''', unsafe_allow_html=True)
             with c2:
                 st.markdown(f'''<div class="stat-card">
@@ -469,88 +474,30 @@ with tab2:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — Permutation Tool
+# TAB 2 — System Guide
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab3:
-    st.markdown("### 🔮 Email Permutation & SMTP Verifier")
-    st.markdown("কোনো ব্যক্তির নাম থেকে সব সম্ভাব্য email format তৈরি করুন এবং SMTP দিয়ে check করুন।")
-
-    perm_name = st.text_input("👤 ব্যক্তির নাম:", value="Maksudur Rahman")
-    perm_domains = st.multiselect(
-        "Domains:", options=["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "live.com"],
-        default=["gmail.com", "yahoo.com"]
-    )
-
-    col_perm1, col_perm2 = st.columns(2)
-    with col_perm1:
-        gen_btn = st.button("🔮 Generate Permutations", use_container_width=True)
-    with col_perm2:
-        verify_btn = st.button("✅ Generate & SMTP Verify", type="primary", use_container_width=True)
-
-    if gen_btn or verify_btn:
-        perms = generate_email_permutations(perm_name, perm_domains if perm_domains else ["gmail.com"])
-        st.markdown(f"**{len(perms)} টি সম্ভাব্য ইমেইল:**")
-
-        if verify_btn and do_smtp:
-            st.info("SMTP দিয়ে verify করছে... (কিছুটা সময় লাগবে)")
-            results_perm = []
-            prog = st.progress(0)
-            for idx, em in enumerate(perms):
-                v = verify_email_smtp(em)
-                results_perm.append({"email": em, **v})
-                prog.progress(int((idx + 1) / len(perms) * 100))
-
-            for r in results_perm:
-                if r["valid"] is True:
-                    st.markdown(f'<div class="email-verified">✅ {r["email"]}</div> — {r["reason"]}<br>', unsafe_allow_html=True)
-                elif r["valid"] is False:
-                    st.markdown(f'<div class="email-candidate">❌ {r["email"]}</div> — {r["reason"]}<br>', unsafe_allow_html=True)
-                else:
-                    st.markdown(f'<div class="email-uncertain">❓ {r["email"]}</div> — {r["reason"]}<br>', unsafe_allow_html=True)
-        else:
-            for em in perms:
-                st.markdown(f'<div class="email-candidate">{em}</div><br>', unsafe_allow_html=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — Guide
-# ═══════════════════════════════════════════════════════════════════════════════
-with tab4:
+with tab2:
     st.markdown("""
 ### 📖 কিভাবে সবচেয়ে Accurate রেজাল্ট পাবেন?
 
-#### 🥇 সবচেয়ে ভালো: Name + Phone একসাথে দিন
-- নাম আর ফোন নাম্বার দুটো দিলে বোট:
-  1. ওই নাম্বারে যে নামে registered সেটা verify করে
-  2. ওই নাম দিয়ে সব possible email format তৈরি করে
-  3. প্রতিটা email SMTP দিয়ে check করে
+#### 🥇 ১. Phone Number সার্চ:
+- ফোন নাম্বারটি ইনপুট দিলে বট স্বয়ংক্রিয়ভাবে:
+  1. সোশ্যাল মিডিয়া (WhatsApp, Truecaller, Facebook) থেকে **অরিজিনাল প্রোফাইল নাম (First & Last Name)** এক্সট্রাক্ট করে।
+  2. গুগলের অফিশিয়াল **Google Account Recovery ('Find Your Email')** ইঞ্জিনে নাম যাচাই করে ১০০% রিয়েল রেজিস্টার্ড ইমেইল আবিষ্কার করে।
+  3. সরাসরি SMTP মেলবক্স সকেট হ্যান্ডশেক সম্পন্ন করে আসল ইমেইল নিশ্চিত করে।
 
-#### 🥈 শুধু Phone দিলে:
-- Google/Bing এ `"01315906086" @gmail.com` style dork করে
-- যদি publicly কোথাও email mention থাকে বের করে আনে
-- Web থেকে নাম বের করে নেয়
+#### 🥈 ২. Name + Phone একসাথে দিলে:
+- নাম ও ফোন দুটো একসাথে ইনপুট দিলে সিস্টেমটি সোশ্যাল এক্সট্রাকশনের পাশাপাশি সরাসরি গুগল অ্যাকাউন্ট রিকভারি নেম ভ্যালিডেশন চালায়।
 
-#### 🥉 শুধু Name দিলে:
-- সব common email format তৈরি করে (firstname.lastname@gmail.com ইত্যাদি)
-- SMTP দিয়ে verify করে
+---
+
+### ⚠️ যদি কোনো তথ্য পাওয়া না যায় (No Result Found):
+- যে নাম্বারের বিপরীতে কোনো তথ্য বা ইমেইল ইন্টারনেটে ইনডেক্স করা নেই, তার ক্ষেত্রে সিস্টেমটি পরিষ্কারভাবে **"Not Found"** বার্তা দেখাবে — কোনো ভুয়া বা কাল্পনিক ইমেইল জেনারেট করবে না।
 
 ---
 
 ### ✅ SMTP Verification কী?
-
-**SMTP** মানে Simple Mail Transfer Protocol। Email server-এ সরাসরি জিজ্ঞেস করা হয়:
-> "এই email address কি exist করে?"
-
-- ✅ **Verified** = Server বলেছে "হ্যাঁ, এই email আছে"
-- ❓ **Uncertain** = Server check block করেছে (Gmail/Yahoo প্রায়ই করে)
-- ❌ **Invalid** = Server বলেছে "এই email নেই"
-
-> **Note:** Gmail/Yahoo বেশিরভাগ সময় port 25 block করে, তাই **Uncertain** আসতে পারে — এই ক্ষেত্রে নিজে manually সেই email এ test mail পাঠিয়ে দেখুন।
-
----
-
-### 💡 Pro Tips:
-- যদি কারো **Facebook/LinkedIn profile** থেকে email address publicly দেখা যায়, ওটা directly পাওয়া যাবে
-- **Business email** (company.com) খুঁজলে sidebar এ custom domain যোগ করুন
-- Bulk lookup এ একসাথে **10-20 টির বেশি** না করা ভালো, কারণ web search block করতে পারে
+**SMTP** (Simple Mail Transfer Protocol) দিয়ে মেলবক্স সার্ভারে সরাসরি কোয়েরি করা হয় যে ইমেইল ঠিকানাটি সক্রিয় এবং গ্রহণযোগ কিনা।
+- ✅ **Verified:** সার্ভার নিশ্চিত করেছে যে ইমেইলটি শতভাগ চালু রয়েছে।
+- ❓ **Uncertain:** নেটওয়ার্ক বা ISP পোর্ট ২৫ ব্লক করলে মেলবক্স অস্তিত্ব যাচাই পেন্ডিং থাকে।
     """)
